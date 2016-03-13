@@ -84,7 +84,6 @@ public class AcceptCommandDelegate extends RtcCommandDelegate {
 	void setSubCommandLine(String targetWorkspace, String changeSetUuid, boolean isBaseline,
 			boolean acceptMissingChangesets) {
 		String uri = getSubCommandOption(config, CommonOptions.OPT_URI);
-		String username = getSubCommandOption(config, CommonOptions.OPT_USERNAME);
 		String password;
 		if (config.getSubcommandCommandLine().hasOption(CommonOptions.OPT_PASSWORD)) {
 			password = getSubCommandOption(config, CommonOptions.OPT_PASSWORD);
@@ -95,14 +94,48 @@ public class AcceptCommandDelegate extends RtcCommandDelegate {
 				throw new RuntimeException("Unable to get password", e);
 			}
 		}
-		setSubCommandLine(
-				config,
-				generateCommandLine(uri, username, password, targetWorkspace, changeSetUuid, isBaseline,
-						acceptMissingChangesets));
+		if (config.getSubcommandCommandLine().hasOption(CommonOptions.OPT_USERNAME)) {
+			String username = getSubCommandOption(config, CommonOptions.OPT_USERNAME);
+			setSubCommandLine(
+					config,
+					generateCommandLineWithUserName(uri, username, password, targetWorkspace, changeSetUuid,
+							isBaseline, acceptMissingChangesets));
+		} else {
+			String certificateFile;
+			if (config.getSubcommandCommandLine().hasOption(CommonOptions.OPT_CERTIFICATE_FILE)) {
+				certificateFile = getSubCommandOption(config, CommonOptions.OPT_CERTIFICATE_FILE);
+			} else {
+				try {
+					certificateFile = config.getConnectionInfo().getCertificateFile().toString();
+				} catch (FileSystemException e) {
+					throw new RuntimeException("Unable to get certificate file", e);
+				}
+			}
+			if (certificateFile == null) {
+				throw new NullPointerException();
+			}
+			setSubCommandLine(
+					config,
+					generateCommandLineWithCertificateFile(uri, certificateFile, password, targetWorkspace,
+							changeSetUuid, isBaseline, acceptMissingChangesets));
+		}
+
 	}
 
-	private ICommandLine generateCommandLine(String uri, String username, String password, String rtcWorkspace,
-			String changeSetUuid, boolean isBaseline, boolean acceptMissingChangesets) {
+	private ICommandLine generateCommandLineWithUserName(String uri, String username, String password,
+			String rtcWorkspace, String changeSetUuid, boolean isBaseline, boolean acceptMissingChangesets) {
+		return generateCommandLine(uri, username, null, password, rtcWorkspace, changeSetUuid, isBaseline,
+				acceptMissingChangesets);
+	}
+
+	private ICommandLine generateCommandLineWithCertificateFile(String uri, String certificateFile, String password,
+			String rtcWorkspace, String changeSetUuid, boolean isBaseline, boolean acceptMissingChangesets) {
+		return generateCommandLine(uri, null, certificateFile, password, rtcWorkspace, changeSetUuid, isBaseline,
+				acceptMissingChangesets);
+	}
+
+	private ICommandLine generateCommandLine(String uri, String username, String certificateFile, String password,
+			String rtcWorkspace, String changeSetUuid, boolean isBaseline, boolean acceptMissingChangesets) {
 		List<String> args = new ArrayList<String>();
 		args.add("-o");
 		args.add("--no-merge");
@@ -114,8 +147,13 @@ public class AcceptCommandDelegate extends RtcCommandDelegate {
 		args.add(uri);
 		args.add("-t");
 		args.add(rtcWorkspace);
-		args.add("-u");
-		args.add(username);
+		if (username == null) {
+			args.add("--certificate");
+			args.add(certificateFile);
+		} else {
+			args.add("-u");
+			args.add(username);
+		}
 		args.add("-P");
 		args.add(password);
 

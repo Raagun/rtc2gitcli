@@ -36,7 +36,6 @@ public class LoadCommandDelegate extends RtcCommandDelegate {
 	private void setSubCommandLineByReflection(IScmClientConfiguration config, String workspace, String component,
 			boolean force) {
 		String uri = getSubCommandOption(config, CommonOptions.OPT_URI);
-		String username = getSubCommandOption(config, CommonOptions.OPT_USERNAME);
 		String password;
 		if (config.getSubcommandCommandLine().hasOption(CommonOptions.OPT_PASSWORD)) {
 			password = getSubCommandOption(config, CommonOptions.OPT_PASSWORD);
@@ -47,16 +46,51 @@ public class LoadCommandDelegate extends RtcCommandDelegate {
 				throw new RuntimeException("Unable to get password", e);
 			}
 		}
-		setSubCommandLine(config, generateCommandLine(uri, username, password, workspace, component, force));
+		if (config.getSubcommandCommandLine().hasOption(CommonOptions.OPT_USERNAME)) {
+			String username = getSubCommandOption(config, CommonOptions.OPT_USERNAME);
+			setSubCommandLine(config,
+					generateCommandLineWithUserName(uri, username, password, workspace, component, force));
+		} else {
+			String certificateFile;
+			if (config.getSubcommandCommandLine().hasOption(CommonOptions.OPT_CERTIFICATE_FILE)) {
+				certificateFile = getSubCommandOption(config, CommonOptions.OPT_CERTIFICATE_FILE);
+			} else {
+				try {
+					certificateFile = config.getConnectionInfo().getCertificateFile().toString();
+				} catch (FileSystemException e) {
+					throw new RuntimeException("Unable to get certificate file", e);
+				}
+			}
+			if (certificateFile == null) {
+				throw new NullPointerException();
+			}
+			setSubCommandLine(config,
+					generateCommandLineWithCertificateFile(uri, certificateFile, password, workspace, component, force));
+		}
 	}
 
-	private ICommandLine generateCommandLine(String uri, String username, String password, String workspace,
-			String component, boolean force) {
+	private ICommandLine generateCommandLineWithCertificateFile(String uri, String certificateFile, String password,
+			String workspace, String component, boolean force) {
+		return generateCommandLine(uri, null, certificateFile, password, workspace, component, force);
+	}
+
+	private ICommandLine generateCommandLineWithUserName(String uri, String username, String password,
+			String workspace, String component, boolean force) {
+		return generateCommandLine(uri, username, null, password, workspace, component, force);
+	}
+
+	private ICommandLine generateCommandLine(String uri, String username, String certificateFile, String password,
+			String workspace, String component, boolean force) {
 		List<String> args = new ArrayList<String>();
 		args.add("-r");
 		args.add(uri);
-		args.add("-u");
-		args.add(username);
+		if (username == null) {
+			args.add("--certificate");
+			args.add(certificateFile);
+		} else {
+			args.add("-u");
+			args.add(username);
+		}
 		args.add("-P");
 		args.add(password);
 
